@@ -45,7 +45,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <algorithm>
 #include <map>
 #include <optional>
-#include <ranges>
 #include <string_view>
 
 namespace beast = boost::beast; // from <boost/beast.hpp>
@@ -64,21 +63,26 @@ namespace this_coro = boost::asio::this_coro;
 namespace restio {
 
 class HttpServerPrivate {
-    HttpHandlerStore                 handlers;
-    http::request<http::string_body> request;
+    HttpHandlerStore handlers;
 
     inline awaitable<void> makeSession(tcp::socket socket)
     {
         // This buffer is required to persist across reads
-        beast::flat_buffer       buffer;
-        boost::beast::tcp_stream stream(std::move(socket));
-        auto                     ec = boost::system::error_code();
+        beast::flat_buffer               buffer;
+        boost::beast::tcp_stream         stream(std::move(socket));
+        auto                             ec = boost::system::error_code();
+        http::request<http::string_body> request;
 
         try {
             for (;;) {
                 // stream.expires_after(std::chrono::seconds(30));
 
                 co_await http::async_read(stream, buffer, request, boost::asio::redirect_error(use_awaitable, ec));
+                if (ec) {
+                    if (ec != http::error::end_of_stream)
+                        RESTIO_ERROR("Session failed: " << ec);
+                    break;
+                }
                 auto version = request.version();
 
                 Response response;
@@ -92,17 +96,20 @@ class HttpServerPrivate {
                     response.result(http::status::not_found);
                 }
 
+                response.keep_alive(request.keep_alive());
                 response.set(http::field::server, "Restio/" RESTIO_VERSION);
                 response.version(version);
-                co_await http::async_write(stream, response, use_awaitable);
+                co_await http::async_write(stream, response, boost::asio::redirect_error(use_awaitable, ec));
 
-                if (response.need_eof()) { // referenced in session
+                if (ec) {
+                    RESTIO_ERROR("Session failed: " << ec);
+                    break;
+                }
+                if (response.need_eof()) {
+                    RESTIO_ERROR("Session no keep-alive. closing.");
                     break;
                 }
             }
-        } catch (boost::system::system_error &e) {
-            if (e.code() != http::error::end_of_stream)
-                RESTIO_ERROR("Session failed: " << e.what());
         } catch (std::exception &e) {
             RESTIO_ERROR("Session failed: " << e.what());
         }
@@ -150,7 +157,10 @@ public:
         co_spawn(io_context, listen(bind_address, bind_port), detached);
     }
 
-    void addRoute(std::string &&path, RequestHandler &&handler) { handlers.add(std::move(path), std::move(handler)); }
+    void addRoute(http::verb method, std::string &&path, RequestHandler &&handler)
+    {
+        handlers.add(method, std::move(path), std::move(handler));
+    }
 };
 
 HttpServer::HttpServer(boost::asio::io_context &io_context,
@@ -161,9 +171,9 @@ HttpServer::HttpServer(boost::asio::io_context &io_context,
 {
 }
 
-void HttpServer::route(std::string &&path, RequestHandler &&handler)
+void HttpServer::route(http::verb method, std::string &&path, RequestHandler &&handler)
 {
-    d->addRoute(std::move(path), std::move(handler));
+    d->addRoute(method, std::move(path), std::move(handler));
 }
 
 HttpServer::~HttpServer() = default;

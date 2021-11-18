@@ -66,7 +66,12 @@ public:
      *   a/b/c
      * The one with the longest path will have preference for the mathing path, the others won't be called at all.
      */
-    void route(std::string &&path, RequestHandler &&handler);
+    inline void route(std::string &&path, RequestHandler &&handler)
+    {
+        route(http::verb::unknown, std::move(path), std::move(handler));
+    }
+
+    void route(http::verb method, std::string &&path, RequestHandler &&handler);
 
 private:
     std::unique_ptr<HttpServerPrivate> d;

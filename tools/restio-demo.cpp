@@ -30,6 +30,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "api_mapper.hpp"
 #include "http_server.hpp"
+#include "log.hpp"
 #include "properties.hpp"
 #include "rest_handler.hpp"
 
@@ -112,6 +113,13 @@ private:
 public:
     RESTService(boost::asio::io_context &ioc) : server(ioc, "0.0.0.0", 8080), restHandler(server)
     {
+        server.route(http::verb::post,
+                     "/shutdown",
+                     [this, &ioc](std::string_view, Request &) -> boost::asio::awaitable<Response> {
+                         ioc.stop();
+                         co_return Response();
+                     });
+
         using namespace std::placeholders;
 #define apiCB(f) std::bind(&RESTService::f, this, _1, _2)
         using M = API::Method;
@@ -145,7 +153,12 @@ public:
 int main()
 {
     boost::asio::io_context ioc;
-    RESTService             service(ioc);
-    ioc.run();
-    std::cout << "finsihed\n";
+    try {
+        RESTService service(ioc);
+        RESTIO_INFO("starting listening");
+        ioc.run();
+        RESTIO_INFO("finished");
+    } catch (std::exception &e) {
+        RESTIO_ERROR("Failed to start service: " << e.what());
+    }
 }

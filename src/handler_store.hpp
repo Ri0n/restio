@@ -36,7 +36,7 @@ public:
     HttpHandlerStore(const std::string &base_path);
 
     void        add(std::string &&path, RequestHandler &&handler);
-    void        add(std::string &&path, boost::beast::http::verb verb, RequestHandler &&handler);
+    void        add(http::verb verb, std::string &&path, RequestHandler &&handler);
     void        remove(const std::string &path, http::verb verb);
     inline void clear() { handlers_.clear(); }
 
