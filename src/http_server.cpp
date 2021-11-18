@@ -93,10 +93,9 @@ class HttpServerPrivate {
                     if (!response.body().empty())
                         response.set(http::field::content_length, std::to_string(response.body().size()));
                 } else {
+                    response.keep_alive(request.keep_alive());
                     response.result(http::status::not_found);
                 }
-
-                response.keep_alive(request.keep_alive());
                 response.set(http::field::server, "Restio/" RESTIO_VERSION);
                 response.version(version);
                 co_await http::async_write(stream, response, boost::asio::redirect_error(use_awaitable, ec));
@@ -106,7 +105,7 @@ class HttpServerPrivate {
                     break;
                 }
                 if (response.need_eof()) {
-                    RESTIO_ERROR("Session no keep-alive. closing.");
+                    RESTIO_ERROR("Session needs eof. closing.");
                     break;
                 }
             }

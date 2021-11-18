@@ -63,15 +63,17 @@ struct RestHandler::Private {
                 if (!lookupResult) {
                     RESTIO_ERROR("Failed to lookup handler for " << request.method_string() << " apiTarget");
                     response.result(http::status::not_found);
-                } else
+                } else {
                     response = co_await lookupResult->method.get().handler(request.body(), lookupResult->properties);
+                }
+                response.keep_alive(request.keep_alive());
             }
         } catch (std::exception &e) {
             RESTIO_ERROR("Unexpected error on HTTP request handling: " << e.what());
             Response response;
             response.result(http::status::internal_server_error);
+            response.keep_alive(false);
         }
-        response.keep_alive(request.keep_alive());
         co_return response;
     }
 
