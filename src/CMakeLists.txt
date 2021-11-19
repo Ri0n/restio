@@ -45,73 +45,76 @@ file(GLOB_RECURSE HEADERS CONFIGURE_DEPENDS "*.hpp")
 message(STATUS "${SOURCES} ${HEADERS}")
 
 macro(add_library_type type suffix)
-add_library (${LIB_TARGET_NAME}${suffix} ${type} ${SOURCES} ${HEADERS})
-generate_export_header(${LIB_TARGET_NAME}${suffix}
-  BASE_NAME ${LIB_TARGET_NAME}
-)
-target_include_directories(${LIB_TARGET_NAME}${suffix} PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
-  $<INSTALL_INTERFACE:include/${LIB_TARGET_NAME}>  # <prefix>/include/restio
-)
-target_include_directories(${LIB_TARGET_NAME}${suffix} PRIVATE ${PROJECT_BINARY_DIR})
-target_link_libraries (${LIB_TARGET_NAME}${suffix} PUBLIC Boost::log Boost::coroutine)
-target_compile_definitions(${LIB_TARGET_NAME}${suffix} PRIVATE
-    ${LIB_TARGET_NAME_UPPER}_LIBRARY
-    RESTIO_VERSION="${CMAKE_PROJECT_VERSION}"
-    BOOST_BEAST_USE_STD_STRING_VIEW
-)
-include(Restio)
-restio_setup_compiler(${LIB_TARGET_NAME}${suffix})
+    add_library (${LIB_TARGET_NAME}${suffix} ${type} ${SOURCES} ${HEADERS})
+    generate_export_header(${LIB_TARGET_NAME}${suffix}
+      BASE_NAME ${LIB_TARGET_NAME}
+    )
+    target_include_directories(${LIB_TARGET_NAME}${suffix} PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+      $<INSTALL_INTERFACE:include/${LIB_TARGET_NAME}>  # <prefix>/include/restio
+    )
+    target_include_directories(${LIB_TARGET_NAME}${suffix} PRIVATE ${PROJECT_BINARY_DIR})
+    target_link_libraries (${LIB_TARGET_NAME}${suffix} PUBLIC Boost::log Boost::coroutine)
+    target_compile_definitions(${LIB_TARGET_NAME}${suffix} PRIVATE
+        ${LIB_TARGET_NAME_UPPER}_LIBRARY
+        RESTIO_VERSION="${CMAKE_PROJECT_VERSION}"
+        BOOST_BEAST_USE_STD_STRING_VIEW
+    )
+    include(Restio)
+    restio_setup_compiler(${LIB_TARGET_NAME}${suffix})
 
-install(TARGETS ${LIB_TARGET_NAME}${suffix} DESTINATION ${LIBRARY_INSTALL_DIR})
-install(FILES
- ${HEADERS}
- ${PROJECT_BINARY_DIR}/${LIB_TARGET_NAME}_export.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${LIB_TARGET_NAME}
-)
+    if (RESTIO_INSTALL)
+        install(TARGETS ${LIB_TARGET_NAME}${suffix} DESTINATION ${LIBRARY_INSTALL_DIR})
+        install(FILES
+         ${HEADERS}
+         ${PROJECT_BINARY_DIR}/${LIB_TARGET_NAME}_export.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${LIB_TARGET_NAME}
+        )
 
-install(
-  TARGETS ${LIB_TARGET_NAME}${suffix}
-  EXPORT ${LIB_TARGET_NAME}${suffix}-targets
-  RUNTIME DESTINATION  ${CMAKE_INSTALL_BINDIR}
-  LIBRARY DESTINATION  ${CMAKE_INSTALL_LIBDIR}
-  ARCHIVE DESTINATION  ${CMAKE_INSTALL_LIBDIR}
-  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
+        install(
+          TARGETS ${LIB_TARGET_NAME}${suffix}
+          EXPORT ${LIB_TARGET_NAME}${suffix}-targets
+          RUNTIME DESTINATION  ${CMAKE_INSTALL_BINDIR}
+          LIBRARY DESTINATION  ${CMAKE_INSTALL_LIBDIR}
+          ARCHIVE DESTINATION  ${CMAKE_INSTALL_LIBDIR}
+          INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        )
 
-install(
-  EXPORT ${LIB_TARGET_NAME}${suffix}-targets
-  NAMESPACE ${LIB_TARGET_NAME}::
-  FILE ${LIB_TARGET_NAME}${suffix}-targets.cmake
-  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${LIB_TARGET_NAME}"
-)
+        install(
+          EXPORT ${LIB_TARGET_NAME}${suffix}-targets
+          NAMESPACE ${LIB_TARGET_NAME}::
+          FILE ${LIB_TARGET_NAME}${suffix}-targets.cmake
+          DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${LIB_TARGET_NAME}"
+        )
+    endif()
 endmacro()
 
-if(BUILD_STATIC)
+if(RESTIO_BUILD_STATIC)
   add_library_type(STATIC _static)
   string(TOUPPER ${LIB_TARGET_NAME}_static UPPER_STATIC_PROJECT_NAME)
   set_target_properties(${LIB_TARGET_NAME}_static PROPERTIES
     COMPILE_FLAGS -D${UPPER_STATIC_PROJECT_NAME}_STATIC_DEFINE)
 endif()
 
-if(BUILD_SHARED)
+if(RESTIO_BUILD_SHARED)
   add_library_type(SHARED "")
   set_target_properties(${LIB_TARGET_NAME} PROPERTIES
     SOVERSION ${PROJECT_VERSION_MAJOR})
 endif()
 
-include(CMakePackageConfigHelpers)
+if (RESTIO_INSTALL)
+    include(CMakePackageConfigHelpers)
 
+    configure_package_config_file(
+      "${CMAKE_SOURCE_DIR}/cmake/${LIB_TARGET_NAME}-config.cmake.in"
+      ${LIB_TARGET_NAME}-config.cmake
+      INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${LIB_TARGET_NAME}"
+      NO_CHECK_REQUIRED_COMPONENTS_MACRO
+      PATH_VARS CMAKE_INSTALL_INCLUDEDIR
+    )
 
-configure_package_config_file(
-  "${CMAKE_SOURCE_DIR}/cmake/${LIB_TARGET_NAME}-config.cmake.in"
-  ${LIB_TARGET_NAME}-config.cmake
-  INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${LIB_TARGET_NAME}"
-  NO_CHECK_REQUIRED_COMPONENTS_MACRO
-  PATH_VARS CMAKE_INSTALL_INCLUDEDIR
-)
-
-install(
-  FILES "${CMAKE_CURRENT_BINARY_DIR}/${LIB_TARGET_NAME}-config.cmake"
-  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${LIB_TARGET_NAME}"
-)
+    install(
+      FILES "${CMAKE_CURRENT_BINARY_DIR}/${LIB_TARGET_NAME}-config.cmake"
+      DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${LIB_TARGET_NAME}"
+    )
+endif()
