@@ -26,9 +26,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "detail/coro_compat.h"
 #endif
 
-#include "handler_store.hpp"
+#include "detail/handler_store.hpp"
 #include "http_server.hpp"
-#include "log.hpp"
+#include "detail/log.hpp"
 
 #include <boost/algorithm/string.hpp>
 #include <boost/asio/awaitable.hpp>

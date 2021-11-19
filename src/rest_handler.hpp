@@ -24,7 +24,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
-#include "common.hpp"
+#include "restio_common.hpp"
 
 #include <nlohmann/json.hpp>
 

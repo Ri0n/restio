@@ -28,8 +28,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "api_mapper.hpp"
 #include "http_server.hpp"
-#include "log.hpp"
-#include "properties.hpp"
+#include "detail/log.hpp"
+#include "restio_properties.hpp"
 #include "rest_handler.hpp"
 
 #include <boost/algorithm/string.hpp>

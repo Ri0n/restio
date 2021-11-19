@@ -25,10 +25,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "rest_handler.hpp"
 
 #include "api_mapper.hpp"
-#include "log.hpp"
-#include "util.hpp"
+#include "detail/log.hpp"
+#include "restio_util.hpp"
 
 #include <boost/lexical_cast.hpp>
+
+namespace http = ::boost::beast::http; // from <boost/beast/http.hpp>
+using ::boost::asio::awaitable;
 
 namespace restio {
 

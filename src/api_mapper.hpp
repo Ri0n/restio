@@ -29,15 +29,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <nlohmann/json.hpp>
 #include <span>
 
-#include "common.hpp"
-#include "properties.hpp"
-
-using namespace nlohmann;
-namespace beast = boost::beast; // from <boost/beast.hpp>
-namespace http  = beast::http;  // from <boost/beast/http.hpp>
-using boost::asio::awaitable;
+#include "restio_common.hpp"
+#include "restio_properties.hpp"
 
 namespace restio::api {
+
+using namespace ::nlohmann;
+namespace http = ::boost::beast::http; // from <boost/beast/http.hpp>
+using ::boost::asio::awaitable;
 
 struct API {
     struct Method {
