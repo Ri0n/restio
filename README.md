@@ -1,7 +1,7 @@
 # C++ Boost REST service library
 
-The idea is build a REST service/server as easy as possible. Currently it's a very premature project. 
-But the final version which even be simpler than in the current demo file in the tools directory.
+The idea is build a REST service/server as easy as possible.
+Take a look at the demo in the tools directory. The final version should be even more neat and simple than that.
 
 Features:
 
@@ -20,3 +20,11 @@ API::Method::get<ResourceGetResponse>(
                 "200 - ok<br>404 - resource not found",
                 apiCB(onResoureGetRequest)),
 ```
+
+TODO:
+ 
+ * TLS
+ * Boost.Json based Boost.Describe
+ * More serializators support
+ * High level API support to abstract away http stuff completely (no idea how yet)
+ * Think of WebSockets or whatever (e.g. some user hook to extract payload format and use it to lookup API)
