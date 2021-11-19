@@ -37,14 +37,12 @@ HttpHandlerStore::HttpHandlerStore(const std::string &base_path) :
 {
 }
 
-void HttpHandlerStore::add(std::string &&path, RequestHandler &&handler)
-{
-    // put theoretical max for the verb to move further any other verbs in the map for faster lookup
-    add(max_verb, std::move(path), std::move(handler));
-}
-
 void HttpHandlerStore::add(http::verb verb, std::string &&path, RequestHandler &&handler)
 {
+    if (verb == http::verb::unknown) {
+        // put theoretical max for the verb to move further any other verbs in the map for faster lookup
+        verb = max_verb;
+    }
     boost::trim_if(path, boost::is_any_of("/"));
     handlers_[std::make_pair(std::move(path), verb)] = std::move(handler);
 }

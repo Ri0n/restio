@@ -52,13 +52,14 @@ public:
 
     void registerAPI(api::API &&api);
 
-    static Response makeOkResponse(std::string          &&body        = std::string(),
-                                   const std::string_view contentType = "application/json; charset=utf-8");
+    static void makeOkResponse(Response              &response,
+                               std::string          &&body        = std::string(),
+                               const std::string_view contentType = "application/json; charset=utf-8");
 
-    template <class R> static Response makeOkResponse(const R &r)
+    template <class R> static void makeOkResponse(Response &reponse, const R &r)
     {
         nlohmann::json j = r;
-        return makeOkResponse(j.dump(), "application/json; charset=utf-8");
+        makeOkResponse(reponse, j.dump(), "application/json; charset=utf-8");
     }
 
 private:

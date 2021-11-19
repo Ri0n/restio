@@ -41,7 +41,8 @@ namespace restio::api {
 
 struct API {
     struct Method {
-        using Handler = std::function<awaitable<Response>(const std::string &reqBody, const Properties &properties)>;
+        using Handler
+            = std::function<awaitable<void>(Request &request, Response &response, const Properties &properties)>;
 
         http::verb  method;
         std::string uri;

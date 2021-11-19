@@ -31,5 +31,5 @@ namespace restio {
 using Request  = boost::beast::http::request<boost::beast::http::string_body>;
 using Response = boost::beast::http::response<boost::beast::http::string_body>;
 
-using RequestHandler = std::function<boost::asio::awaitable<Response>(std::string_view, Request &)>;
+using RequestHandler = std::function<boost::asio::awaitable<void>(std::string_view, Request &, Response &)>;
 }

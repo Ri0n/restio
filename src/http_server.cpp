@@ -63,58 +63,158 @@ namespace this_coro = boost::asio::this_coro;
 namespace restio {
 
 class HttpServerPrivate {
-    HttpHandlerStore handlers;
+    struct Session : public std::enable_shared_from_this<Session> {
+        using EofCallback  = std::function<void(std::shared_ptr<Session>)>;
+        using ReadCallback = std::function<void(std::shared_ptr<Session>, Request &, Response &)>;
 
-    inline awaitable<void> makeSession(tcp::socket socket)
-    {
-        // This buffer is required to persist across reads
-        beast::flat_buffer               buffer;
-        boost::beast::tcp_stream         stream(std::move(socket));
-        auto                             ec = boost::system::error_code();
-        http::request<http::string_body> request;
+        beast::flat_buffer        buffer;
+        Request                   request;
+        Response                  response;
+        boost::beast::tcp_stream  stream; //(std::move(socket));
+        boost::system::error_code ec;
 
-        try {
-            for (;;) {
-                // stream.expires_after(std::chrono::seconds(30));
+        ReadCallback readCallback;
+        EofCallback  eofCallback;
 
-                co_await http::async_read(stream, buffer, request, boost::asio::redirect_error(use_awaitable, ec));
-                if (ec) {
-                    if (ec != http::error::end_of_stream)
-                        RESTIO_ERROR("Session failed: " << ec);
-                    break;
-                }
-                auto version = request.version();
-
-                Response response;
-                auto     lookup_result = handlers.lookup(request);
-                if (lookup_result) {
-                    auto const &[path, handler] = *lookup_result;
-                    response                    = co_await handler(path, request);
-                    if (!response.body().empty())
-                        response.set(http::field::content_length, std::to_string(response.body().size()));
-                } else {
-                    response.keep_alive(request.keep_alive());
-                    response.result(http::status::not_found);
-                }
-                response.set(http::field::server, "Restio/" RESTIO_VERSION);
-                response.version(version);
-                co_await http::async_write(stream, response, boost::asio::redirect_error(use_awaitable, ec));
-
-                if (ec) {
-                    RESTIO_ERROR("Session failed: " << ec);
-                    break;
-                }
-                if (response.need_eof()) {
-                    RESTIO_ERROR("Session needs eof. closing.");
-                    break;
-                }
-            }
-        } catch (std::exception &e) {
-            RESTIO_ERROR("Session failed: " << e.what());
+        Session(tcp::socket &&socket, ReadCallback &&readCallback, EofCallback &&eofCallback) :
+            stream(std::move(socket)), readCallback(std::move(readCallback)), eofCallback(std::move(eofCallback))
+        {
         }
 
-        // Send a TCP shutdown
-        stream.socket().shutdown(tcp::socket::shutdown_send, ec);
+        ~Session() { close(); }
+
+        void process()
+        {
+            using namespace std::placeholders;
+            request = {};
+            http::async_read(stream,
+                             buffer,
+                             request,
+                             [weak_this = std::weak_ptr(shared_from_this())](
+                                 const boost::system::error_code &ec, [[maybe_unused]] std::size_t bytes_transferred) {
+                                 auto self = weak_this.lock();
+                                 if (self) {
+                                     self->onRead(ec);
+                                 }
+                             });
+        }
+
+        void onRead(const boost::system::error_code &ec)
+        {
+            RESTIO_TRACE("onRead: " << ec);
+            if (ec) {
+                if (ec != http::error::end_of_stream)
+                    RESTIO_ERROR("Session failed: " << ec);
+                onFinish(ec);
+                return;
+            }
+            response = {};
+            response.version(request.version());
+            response.set(http::field::server, "Restio/" RESTIO_VERSION);
+            response.keep_alive(request.keep_alive());
+            response.result(http::status::ok);
+            readCallback(shared_from_this(), request, response);
+        }
+
+        void onFinish(const boost::system::error_code &ec)
+        {
+            RESTIO_TRACE("onFinish: " << ec);
+            this->ec = ec;
+            eofCallback(shared_from_this());
+        }
+
+        void close()
+        {
+            if (stream.socket().is_open()) {
+                // Send a TCP shutdown
+                stream.socket().shutdown(tcp::socket::shutdown_send, ec);
+                stream.close();
+            }
+        }
+
+        void write(std::string_view reason = {})
+        {
+            if (!reason.empty()) {
+                response.reason(reason);
+            }
+            response.prepare_payload();
+            using namespace std::placeholders;
+            http::async_write(stream,
+                              response,
+                              [weak_this = std::weak_ptr(shared_from_this())](
+                                  const boost::system::error_code &ec, [[maybe_unused]] std::size_t bytes_transferred) {
+                                  auto self = weak_this.lock();
+                                  if (self) {
+                                      self->onWritten(ec);
+                                  }
+                              });
+        }
+
+        void onWritten(const boost::system::error_code &ec)
+        {
+            RESTIO_TRACE("onWritten: " << ec);
+            if (ec) {
+                RESTIO_ERROR("Session failed: " << ec);
+            }
+            if (response.need_eof()) {
+                RESTIO_ERROR("Session needs eof. closing.");
+            }
+            if (ec || response.need_eof()) {
+                onFinish(ec);
+            } else {
+                process();
+            }
+        }
+    };
+
+    boost::asio::io_context                          &io_context;
+    HttpHandlerStore                                  handlers;
+    std::map<tcp::endpoint, std::shared_ptr<Session>> sessions;
+
+    void processRequest(std::shared_ptr<Session> session, Request &request, Response &response)
+    {
+        auto lookup_result = handlers.lookup(request);
+        if (lookup_result) {
+            auto const &[path, handler] = *lookup_result;
+            co_spawn(
+                io_context.get_executor(),
+                [path = path, session, handler = handler, &request, &response]() -> awaitable<void> {
+                    try {
+                        co_await handler(path, request, response);
+                        session->write();
+                    } catch (std::exception &e) {
+                        RESTIO_ERROR("Session failed: " << e.what());
+                        response.result(http::status::internal_server_error);
+                        session->write("Exception happened");
+                    }
+                },
+                detached);
+            return;
+        }
+        RESTIO_ERROR("Failed to lookup any HTTP handler for " << request.method_string() << " " << request.target());
+        response.result(http::status::not_found);
+        session->write();
+    }
+
+    void makeSession(tcp::socket socket)
+    {
+        using namespace std::placeholders;
+        auto endpoint = socket.remote_endpoint();
+        auto session  = std::make_shared<Session>(std::move(socket),
+                                                 std::bind(&HttpServerPrivate::processRequest, this, _1, _2, _3),
+                                                 [endpoint, this](std::shared_ptr<Session>) {
+                                                     auto it = sessions.find(endpoint);
+                                                     if (it != sessions.end()) {
+                                                         sessions.erase(it);
+                                                     }
+                                                 });
+
+        auto const &[it, inserted] = sessions.insert(std::make_pair(endpoint, session));
+        if (!inserted) {
+            it->second->close();
+            sessions[endpoint] = session;
+        }
+        session->process();
     }
 
     awaitable<void> listen(std::string bind_address, uint16_t bind_port)
@@ -139,7 +239,7 @@ class HttpServerPrivate {
         for (;;) {
             try {
                 tcp::socket socket = co_await acceptor.async_accept(use_awaitable);
-                co_spawn(executor, makeSession(std::move(socket)), detached);
+                makeSession(std::move(socket));
             } catch (std::exception &e) {
                 RESTIO_ERROR("Failed to accept socket: " << e.what());
             }
@@ -151,6 +251,7 @@ public:
                       const std::string       &bind_address,
                       uint16_t                 bind_port,
                       const std::string       &base_path) :
+        io_context(io_context),
         handlers(base_path)
     {
         co_spawn(io_context, listen(bind_address, bind_port), detached);

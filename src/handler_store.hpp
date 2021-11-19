@@ -35,7 +35,10 @@ class HttpHandlerStore {
 public:
     HttpHandlerStore(const std::string &base_path);
 
-    void        add(std::string &&path, RequestHandler &&handler);
+    inline void add(std::string &&path, RequestHandler &&handler)
+    {
+        add(http::verb::unknown, std::move(path), std::move(handler));
+    }
     void        add(http::verb verb, std::string &&path, RequestHandler &&handler);
     void        remove(const std::string &path, http::verb verb);
     inline void clear() { handlers_.clear(); }

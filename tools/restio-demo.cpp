@@ -26,8 +26,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "detail/coro_compat.h"
 #endif
 
-#include "rest_service.hpp"
-
 #include "api_mapper.hpp"
 #include "http_server.hpp"
 #include "log.hpp"
@@ -70,39 +68,36 @@ struct ResourceGetResponse {
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(ResourceGetResponse, echo)
 
 class RESTService {
-    awaitable<Response> onResoureAddRequest(const std::string &body, const Properties &)
+    awaitable<void> onResoureAddRequest(Request &request, Response &response, const Properties &)
     {
-        auto request              = json::parse(body).get<ResourceAddRequest>();
-        auto const &[_, inserted] = resources.insert(request.name);
+        auto resAddRequest        = json::parse(request.body()).get<ResourceAddRequest>();
+        auto const &[_, inserted] = resources.insert(resAddRequest.name);
         if (!inserted) {
-            Response response;
             response.result(http::status::conflict);
-            co_return response;
+            co_return;
         }
-        co_return RestHandler::makeOkResponse(ResourceAddResponse { "hello " + request.name });
+        RestHandler::makeOkResponse(response, ResourceAddResponse { "hello " + resAddRequest.name });
     }
 
-    awaitable<Response> onResourceDeleteRequest([[maybe_unused]] const std::string &body, const Properties &p)
+    awaitable<void> onResourceDeleteRequest(Request &, Response &response, const Properties &p)
     {
         auto it = resources.find(*p.value<std::string>("id"));
         if (it == resources.end()) {
-            Response response;
             response.result(http::status::not_found);
-            co_return response;
+            co_return;
         }
         resources.erase(it);
-        co_return RestHandler::makeOkResponse();
+        RestHandler::makeOkResponse(response);
     }
 
-    awaitable<Response> onResoureGetRequest([[maybe_unused]] const std::string &body, const Properties &p)
+    awaitable<void> onResoureGetRequest(Request &, Response &response, const Properties &p)
     {
         auto it = resources.find(*p.value<std::string>("id"));
         if (it == resources.end()) {
-            Response response;
             response.result(http::status::not_found);
-            co_return response;
+            co_return;
         }
-        co_return RestHandler::makeOkResponse(ResourceGetResponse { "It's " + *it });
+        RestHandler::makeOkResponse(response, ResourceGetResponse { "It's " + *it });
     }
 
 private:
@@ -115,13 +110,13 @@ public:
     {
         server.route(http::verb::post,
                      "/shutdown",
-                     [this, &ioc](std::string_view, Request &) -> boost::asio::awaitable<Response> {
+                     [&ioc](std::string_view, Request &, Response &) -> boost::asio::awaitable<void> {
                          ioc.stop();
-                         co_return Response();
+                         co_return;
                      });
 
         using namespace std::placeholders;
-#define apiCB(f) std::bind(&RESTService::f, this, _1, _2)
+#define apiCB(f) std::bind(&RESTService::f, this, _1, _2, _3)
         using M = API::Method;
 
         API api;
@@ -154,6 +149,7 @@ int main()
 {
     boost::asio::io_context ioc;
     try {
+        restio::log.setLevel(boost::log::trivial::severity_level::trace);
         RESTService service(ioc);
         RESTIO_INFO("starting listening");
         ioc.run();
