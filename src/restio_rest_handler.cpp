@@ -22,10 +22,10 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include "rest_handler.hpp"
+#include "restio_rest_handler.hpp"
 
-#include "api_mapper.hpp"
-#include "detail/log.hpp"
+#include "restio_api_mapper.hpp"
+#include "log.hpp"
 #include "restio_util.hpp"
 
 #include <boost/lexical_cast.hpp>

@@ -24,7 +24,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
-#include "http_server.hpp"
+#include "restio_http_server.hpp"
 
 #include <map>
 #include <optional>

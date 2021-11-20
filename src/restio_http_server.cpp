@@ -23,12 +23,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #ifdef BOOST_ASIO_HAS_CO_AWAIT
-#include "detail/coro_compat.h"
+#include "coro_compat.h"
 #endif
 
-#include "detail/handler_store.hpp"
-#include "detail/log.hpp"
-#include "http_server.hpp"
+#include "handler_store.hpp"
+#include "log.hpp"
+#include "restio_http_server.hpp"
 
 #include <boost/algorithm/string.hpp>
 #include <boost/asio/awaitable.hpp>
