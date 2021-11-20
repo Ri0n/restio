@@ -136,7 +136,7 @@ void RestHandler::makeOkResponse(Response &response, std::string &&body, const s
 {
     if (body.size()) {
         response.result(http::status::ok);
-        response.set(http::field::content_type, contentType);
+        response.set(http::field::content_type, { contentType.data(), contentType.size() });
         response.body() = std::move(body);
     } else {
         response.result(http::status::no_content);

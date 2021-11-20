@@ -59,7 +59,6 @@ macro(add_library_type type suffix)
     target_compile_definitions(${LIB_TARGET_NAME}${suffix} PRIVATE
         ${LIB_TARGET_NAME_UPPER}_LIBRARY
         RESTIO_VERSION="${CMAKE_PROJECT_VERSION}"
-        BOOST_BEAST_USE_STD_STRING_VIEW
     )
     include(Restio)
     restio_setup_compiler(${LIB_TARGET_NAME}${suffix})

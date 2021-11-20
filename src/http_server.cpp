@@ -27,8 +27,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 #include "detail/handler_store.hpp"
-#include "http_server.hpp"
 #include "detail/log.hpp"
+#include "http_server.hpp"
 
 #include <boost/algorithm/string.hpp>
 #include <boost/asio/awaitable.hpp>
@@ -135,7 +135,7 @@ class HttpServerPrivate {
         void write(std::string_view reason = {})
         {
             if (!reason.empty()) {
-                response.reason(reason);
+                response.reason({ reason.data(), reason.size() });
             }
             response.prepare_payload();
             using namespace std::placeholders;

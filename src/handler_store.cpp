@@ -85,7 +85,8 @@ HttpHandlerStore::lookup(const http::request<http::string_body> &req) const
         }
         auto c = req_target[path.size()];
         if (c == '/' || c == '#' || c == '?') {
-            return req_target.substr(path.size());
+            auto tail = req_target.substr(path.size());
+            return std::string_view { tail.data(), tail.size() };
         }
         return std::nullopt;
     };
