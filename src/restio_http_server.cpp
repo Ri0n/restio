@@ -22,15 +22,12 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifdef BOOST_ASIO_HAS_CO_AWAIT
 #include "coro_compat.h"
-#endif
 
 #include "handler_store.hpp"
 #include "log.hpp"
 #include "restio_http_server.hpp"
 
-#include <boost/algorithm/string.hpp>
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -38,17 +35,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <boost/asio/redirect_error.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
-#include <boost/beast/version.hpp>
-#include <boost/config.hpp>
 #include <boost/system/error_code.hpp>
 
-#include <algorithm>
-#include <map>
-#include <optional>
-#include <string_view>
-
-namespace beast = boost::beast; // from <boost/beast.hpp>
-namespace http  = beast::http;  // from <boost/beast/http.hpp>
+namespace beast = boost::beast;
+namespace http  = beast::http;
 using tcp       = boost::asio::ip::tcp;
 using boost::asio::awaitable;
 using boost::asio::detached;
