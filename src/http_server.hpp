@@ -33,14 +33,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <memory>
 #include <string>
 
-namespace beast = boost::beast; // from <boost/beast.hpp>
-namespace http  = beast::http;  // from <boost/beast/http.hpp>
-
 namespace boost::asio {
 class io_context;
 }
 
 namespace restio {
+
+namespace http = ::boost::beast::http;
 
 class HttpServerPrivate;
 class HttpServer {
