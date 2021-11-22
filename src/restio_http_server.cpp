@@ -83,7 +83,6 @@ class HttpServerPrivate {
         boost::system::error_code ec;
 
         for (;;) {
-            using namespace std::placeholders;
             request = {};
             co_await http::async_read(stream, buffer, request, boost::asio::redirect_error(use_awaitable, ec));
             if (ec) {

@@ -28,20 +28,22 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <map>
 #include <optional>
+#include <tuple>
 
 namespace restio {
 
 class HttpHandlerStore {
 public:
-    HttpHandlerStore(const std::string &base_path);
+    HttpHandlerStore(const std::string &base_path = {});
 
     inline void add(std::string &&path, RequestHandler &&handler)
     {
         add(http::verb::unknown, std::move(path), std::move(handler));
     }
     void        add(http::verb verb, std::string &&path, RequestHandler &&handler);
-    void        remove(const std::string &path, http::verb verb);
-    inline void clear() { handlers_.clear(); }
+    inline void remove(const std::string &path) { remove(http::verb::unknown, path); }
+    void        remove(http::verb verb, const std::string &path);
+    inline void clear() { nodes_.clear(); }
 
     inline const std::string &path() const { return base_path_; }
 
@@ -49,8 +51,21 @@ public:
     lookup(const http::request<http::string_body> &req) const;
 
 private:
-    std::string                                                                base_path_;
-    std::map<std::pair<std::string, boost::beast::http::verb>, RequestHandler> handlers_;
+    struct Node;
+    using NodeMap    = std::unordered_map<std::string, Node>;
+    using HandlerMap = std::unordered_map<http::verb, RequestHandler>;
+    struct Node {
+        HandlerMap handlers;
+        NodeMap    children;
+    };
+
+    void remove_helper(http::verb verb, std::string_view path_part, NodeMap &nmap);
+
+    std::optional<std::tuple<std::string_view, const Node *, const RequestHandler *>>
+    lookup_node(http::verb verb, std::string_view path) const;
+
+    std::string base_path_;
+    NodeMap     nodes_;
 };
 
 } // namespace restio
