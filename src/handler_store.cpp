@@ -48,11 +48,11 @@ void HttpHandlerStore::add(http::verb verb, std::string &&path, RequestHandler &
          pit != decltype(pit)();
          ++pit) {
         std::string part               = copy_range<std::string>(*pit);
-        auto const &[nodeIt, inserted] = nodes->try_emplace(std::move(part), Node {});
+        auto const &[nodeIt, inserted] = nodes->try_emplace(std::move(part), std::make_unique<Node>());
         if (inserted) {
-            nodeIt->second.handlers.reserve(4); // for get/post/put/delete
+            nodeIt->second->handlers.reserve(4); // for get/post/put/delete
         }
-        node  = &nodeIt->second;
+        node  = nodeIt->second.get();
         nodes = &(node->children);
     }
     node->handlers[verb] = std::move(handler);
@@ -68,16 +68,17 @@ void HttpHandlerStore::remove_helper(http::verb verb, std::string_view path_tail
     if (nit == nmap.end()) {
         return;
     }
-    bool is_final_part = pit == path_tail.end() || *pit != '/';
+    Node *node          = nit->second.get();
+    bool  is_final_part = pit == path_tail.end() || *pit != '/';
     if (is_final_part) {
-        auto hit = nit->second.handlers.find(verb);
-        if (hit != nit->second.handlers.end()) {
-            nit->second.handlers.erase(hit);
+        auto hit = node->handlers.find(verb);
+        if (hit != node->handlers.end()) {
+            node->handlers.erase(hit);
         }
     } else {
-        remove_helper(verb, path_tail.substr(pit + 1 - path_tail.data()), nit->second.children);
+        remove_helper(verb, path_tail.substr(pit + 1 - path_tail.data()), node->children);
     }
-    if (nit->second.handlers.empty() && nit->second.children.empty()) {
+    if (node->handlers.empty() && node->children.empty()) {
         nmap.erase(nit);
     }
 }
@@ -114,11 +115,11 @@ HttpHandlerStore::lookup_node(http::verb req_verb, std::string_view req_target) 
     auto                  path_tail           = req_target;
 
     auto const get_handler = [req_verb](auto const &node) {
-        auto handlerIt = node.handlers.find(req_verb);
-        if (handlerIt != node.handlers.end() || req_verb == verb::unknown) {
+        auto handlerIt = node->handlers.find(req_verb);
+        if (handlerIt != node->handlers.end() || req_verb == verb::unknown) {
             return handlerIt;
         }
-        return node.handlers.find(http::verb::unknown);
+        return node->handlers.find(http::verb::unknown);
     };
 
     std::size_t start      = 0;
@@ -136,14 +137,14 @@ HttpHandlerStore::lookup_node(http::verb req_verb, std::string_view req_target) 
         if (nodeIt == nodes->end()) {
             break;
         }
-        auto const &node      = nodeIt->second;
-        auto        handlerIt = get_handler(node);
-        if (handlerIt != node.handlers.end()) {
-            lastMatchingNode    = &node;
+        auto const node      = nodeIt->second.get();
+        auto       handlerIt = get_handler(node);
+        if (handlerIt != node->handlers.end()) {
+            lastMatchingNode    = node;
             lastMatchingHandler = &handlerIt->second;
             path_tail           = req_target.substr(ppos);
         }
-        nodes = &node.children;
+        nodes = &node->children;
         if (delim_not_found || req_target[ppos] != '/') {
             break;
         }
@@ -153,10 +154,10 @@ HttpHandlerStore::lookup_node(http::verb req_verb, std::string_view req_target) 
     if (!lastMatchingNode && !req_target.empty()) { // We didn't check "" node yet.
         auto nodeIt = nodes_.find("");
         if (nodeIt != nodes_.end()) {
-            auto const &node      = nodeIt->second;
-            auto        handlerIt = get_handler(node);
-            if (handlerIt != node.handlers.end()) {
-                lastMatchingNode    = &node;
+            auto const node      = nodeIt->second.get();
+            auto       handlerIt = get_handler(node);
+            if (handlerIt != node->handlers.end()) {
+                lastMatchingNode    = node;
                 lastMatchingHandler = &handlerIt->second;
                 path_tail           = req_target;
             }

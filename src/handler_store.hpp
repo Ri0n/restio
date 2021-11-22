@@ -52,7 +52,7 @@ public:
 
 private:
     struct Node;
-    using NodeMap    = std::unordered_map<std::string, Node>;
+    using NodeMap    = std::unordered_map<std::string, std::unique_ptr<Node>>;
     using HandlerMap = std::unordered_map<http::verb, RequestHandler>;
     struct Node {
         HandlerMap handlers;
