@@ -25,8 +25,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "coro_compat.h"
 
 #include "handler_store.hpp"
-#include "restio_log.hpp"
 #include "restio_http_server.hpp"
+#include "restio_log.hpp"
 
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/co_spawn.hpp>
@@ -90,6 +90,8 @@ class HttpServerPrivate {
                     RESTIO_ERROR("Session failed: " << ec);
                 break;
             }
+            RESTIO_DEBUG("Got http request: " << request.method_string() << " " << request.target());
+            RESTIO_TRACE("Request body: " << request.body());
             response = {};
             response.version(request.version());
             response.set(http::field::server, "Restio/" RESTIO_VERSION);

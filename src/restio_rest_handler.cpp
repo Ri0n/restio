@@ -51,8 +51,6 @@ struct RestHandler::Private {
 
     awaitable<void> onRequest(int apiVersion, std::string_view target, Request &request, Response &response)
     {
-        RESTIO_DEBUG("Got http request: " << request.method_string() << " " << request.target() << " "
-                                          << request.body());
         try {
             auto it = apis.find(apiVersion);
             BOOST_ASSERT(it != apis.end());
