@@ -25,7 +25,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "restio_rest_handler.hpp"
 
 #include "restio_api_mapper.hpp"
-#include "log.hpp"
+#include "restio_log.hpp"
 #include "restio_util.hpp"
 
 #include <boost/lexical_cast.hpp>

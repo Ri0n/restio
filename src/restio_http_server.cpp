@@ -25,7 +25,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "coro_compat.h"
 
 #include "handler_store.hpp"
-#include "log.hpp"
+#include "restio_log.hpp"
 #include "restio_http_server.hpp"
 
 #include <boost/asio/awaitable.hpp>

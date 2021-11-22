@@ -28,7 +28,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "restio_api_mapper.hpp"
 #include "restio_http_server.hpp"
-#include "log.hpp"
+#include "restio_log.hpp"
 #include "restio_properties.hpp"
 #include "restio_rest_handler.hpp"
 
