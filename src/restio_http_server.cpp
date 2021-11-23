@@ -146,6 +146,9 @@ class HttpServerPrivate {
                 co_spawn(executor, makeSession(std::move(socket)), detached);
             } catch (std::exception &e) {
                 RESTIO_ERROR("Failed to accept socket: " << e.what());
+                if (!acceptor.is_open()) {
+                    co_return;
+                }
             }
         }
     }
