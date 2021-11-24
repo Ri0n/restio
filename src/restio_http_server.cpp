@@ -54,6 +54,7 @@ namespace restio {
 
 class HttpServerPrivate {
     HttpHandlerStore handlers;
+    tcp::acceptor    acceptor;
 
     awaitable<void> processRequest(Request &request, Response &response)
     {
@@ -121,13 +122,36 @@ class HttpServerPrivate {
         }
     }
 
-    awaitable<void> listen(std::string bind_address, uint16_t bind_port)
+    awaitable<void> listen()
     {
-        auto                     executor = co_await this_coro::executor;
+        auto executor = co_await this_coro::executor;
+        for (;;) {
+            try {
+                tcp::socket socket = co_await acceptor.async_accept(use_awaitable);
+                co_spawn(executor, makeSession(std::move(socket)), detached);
+            } catch (boost::system::system_error &e) {
+                if (e.code() == boost::asio::error::operation_aborted) {
+                    RESTIO_INFO("Listening restio tcp socket closed");
+                    break;
+                }
+                RESTIO_ERROR("Failed to accept restio socket: " << e.what());
+                if (!acceptor.is_open()) {
+                    break;
+                }
+            } catch (...) {
+                RESTIO_ERROR("Unexpected restio error");
+                break;
+            }
+        }
+    }
+
+    tcp::acceptor
+    setup_acceptor(boost::asio::io_context &io_context, const std::string &bind_address, uint16_t bind_port)
+    {
         boost::beast::error_code ec;
         auto                     endpoint = tcp::endpoint { boost::asio::ip::make_address(bind_address), bind_port };
 
-        tcp::acceptor acceptor(executor);
+        tcp::acceptor acceptor(io_context.get_executor());
         acceptor.open(endpoint.protocol(), ec);
         ensure_success(ec, "open http endpoint");
 
@@ -140,17 +164,7 @@ class HttpServerPrivate {
         acceptor.listen(boost::asio::socket_base::max_listen_connections, ec);
         ensure_success(ec, "listen");
 
-        for (;;) {
-            try {
-                tcp::socket socket = co_await acceptor.async_accept(use_awaitable);
-                co_spawn(executor, makeSession(std::move(socket)), detached);
-            } catch (std::exception &e) {
-                RESTIO_ERROR("Failed to accept socket: " << e.what());
-                if (!acceptor.is_open()) {
-                    co_return;
-                }
-            }
-        }
+        return acceptor;
     }
 
 public:
@@ -158,15 +172,18 @@ public:
                       const std::string       &bind_address,
                       uint16_t                 bind_port,
                       const std::string       &base_path) :
-        handlers(base_path)
+        handlers(base_path),
+        acceptor(setup_acceptor(io_context, bind_address, bind_port))
     {
-        co_spawn(io_context, listen(bind_address, bind_port), detached);
+        co_spawn(io_context, listen(), detached);
     }
 
     void addRoute(http::verb method, std::string &&path, RequestHandler &&handler)
     {
         handlers.add(method, std::move(path), std::move(handler));
     }
+
+    void stop() { acceptor.close(); }
 };
 
 HttpServer::HttpServer(boost::asio::io_context &io_context,
@@ -176,6 +193,8 @@ HttpServer::HttpServer(boost::asio::io_context &io_context,
     d(std::make_unique<HttpServerPrivate>(io_context, bind_address, bind_port, base_path))
 {
 }
+
+void HttpServer::stop() { d->stop(); }
 
 void HttpServer::route(http::verb method, std::string &&path, RequestHandler &&handler)
 {

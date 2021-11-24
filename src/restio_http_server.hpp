@@ -53,6 +53,8 @@ public:
                const std::string       &base_path = {});
     ~HttpServer();
 
+    void stop();
+
     /**
      * @brief route a part of the path relative to base_path passed to contructor
      * @param path something a/b/c where all the remaining after "c" if started with [/,?,#,<nothing>]
