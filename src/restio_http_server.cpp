@@ -60,11 +60,14 @@ class HttpServerPrivate {
     {
         auto lookup_result = handlers.lookup(request);
         if (!lookup_result) {
-            RESTIO_ERROR("Failed to lookup any HTTP handler for " << request.method_string() << " "
-                                                                  << request.target());
+            RESTIO_ERROR("unroutable request: " << request.method_string() << " " << request.target()
+                                                << " payload:" << request.body());
             response.result(http::status::not_found);
             co_return;
         }
+        RESTIO_TRACE("request: " << request.method_string() << " " << request.target()
+                                 << " payload:" << request.body());
+
         auto const &[path, handler] = *lookup_result;
         try {
             co_await handler(path, request, response);
@@ -91,8 +94,7 @@ class HttpServerPrivate {
                     RESTIO_ERROR("Session failed: " << ec);
                 break;
             }
-            RESTIO_DEBUG("Got http request: " << request.method_string() << " " << request.target());
-            RESTIO_TRACE("Request body: " << request.body());
+
             response = {};
             response.version(request.version());
             response.set(http::field::server, "Restio/" RESTIO_VERSION);
@@ -110,7 +112,7 @@ class HttpServerPrivate {
                 break;
             }
             if (response.need_eof()) {
-                RESTIO_ERROR("Session needs eof. closing.");
+                RESTIO_TRACE("Session needs eof. closing.");
                 break;
             }
         }
