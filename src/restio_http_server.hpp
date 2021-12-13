@@ -44,13 +44,20 @@ namespace http = ::boost::beast::http;
 class HttpServerPrivate;
 class HttpServer {
 public:
+    struct Stats {
+        uint32_t requests         = 0;
+        uint32_t unknown_requests = 0;
+        uint32_t exceptions       = 0;
+    };
+
     /**
      * @param base_path - if something is passed outside of base_path, 404 will be returned
      */
     HttpServer(boost::asio::io_context &io_context,
                const std::string       &bind_address,
                std::uint16_t            bind_port,
-               const std::string       &base_path = {});
+               const std::string       &base_path    = {},
+               const std::string       &service_name = {});
     ~HttpServer();
 
     void stop();
@@ -73,6 +80,8 @@ public:
     }
 
     void route(http::verb method, std::string &&path, RequestHandler &&handler);
+
+    Stats takeStats();
 
 private:
     std::unique_ptr<HttpServerPrivate> d;

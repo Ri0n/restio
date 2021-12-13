@@ -53,16 +53,19 @@ namespace this_coro = boost::asio::this_coro;
 namespace restio {
 
 class HttpServerPrivate {
-    HttpHandlerStore handlers;
-    tcp::acceptor    acceptor;
+    HttpHandlerStore  handlers;
+    tcp::acceptor     acceptor;
+    HttpServer::Stats stats;
 
     awaitable<void> processRequest(Request &request, Response &response)
     {
+        stats.requests++;
         auto lookup_result = handlers.lookup(request);
         if (!lookup_result) {
             RESTIO_ERROR("unroutable request: " << request.method_string() << " " << request.target()
                                                 << " payload:" << request.body());
             response.result(http::status::not_found);
+            stats.unknown_requests++;
             co_return;
         }
         RESTIO_TRACE("request: " << request.method_string() << " " << request.target()
@@ -72,6 +75,7 @@ class HttpServerPrivate {
         try {
             co_await handler(path, request, response);
         } catch (std::exception &e) {
+            stats.exceptions++;
             RESTIO_ERROR("Session failed: " << e.what());
             response.result(http::status::internal_server_error);
             response.reason("Exception happened");
@@ -147,13 +151,30 @@ class HttpServerPrivate {
         }
     }
 
-    tcp::acceptor
-    setup_acceptor(boost::asio::io_context &io_context, const std::string &bind_address, uint16_t bind_port)
+    tcp::acceptor setup_acceptor(boost::asio::io_context &io_context,
+                                 const std::string       &bind_address,
+                                 uint16_t                 bind_port,
+                                 const std::string       &service_name)
     {
         boost::beast::error_code ec;
-        auto                     endpoint = tcp::endpoint { boost::asio::ip::make_address(bind_address), bind_port };
+        tcp::endpoint            endpoint;
+        try {
+            endpoint = { boost::asio::ip::make_address(bind_address), bind_port };
+        } catch (std::exception &) {
+            // try to resolve bind_address. maybe it's not an IP
+            boost::asio::ip::tcp::resolver resolver(io_context.get_executor());
+            auto                           resolved = resolver.resolve(bind_address, "");
+            auto                           it       = std::find_if(
+                resolved.begin(), resolved.end(), [](auto &e) { return e.endpoint().address().is_v4(); });
+            if (it == resolved.end()) {
+                throw std::runtime_error(std::string("Failed to resolve IPv4 address for ") + bind_address);
+            }
+            endpoint = { it->endpoint().address(), bind_port };
+        }
 
         tcp::acceptor acceptor(io_context.get_executor());
+        RESTIO_INFO("Bind " << (service_name.empty() ? std::string("restio http service") : service_name) << " to "
+                            << endpoint.address().to_string() << ":" << bind_port);
         acceptor.open(endpoint.protocol(), ec);
         ensure_success(ec, "open http endpoint");
 
@@ -173,9 +194,10 @@ public:
     HttpServerPrivate(boost::asio::io_context &io_context,
                       const std::string       &bind_address,
                       uint16_t                 bind_port,
-                      const std::string       &base_path) :
+                      const std::string       &base_path,
+                      const std::string       &service_name) :
         handlers(base_path),
-        acceptor(setup_acceptor(io_context, bind_address, bind_port))
+        acceptor(setup_acceptor(io_context, bind_address, bind_port, service_name))
     {
         co_spawn(io_context, listen(), detached);
     }
@@ -186,13 +208,21 @@ public:
     }
 
     void stop() { acceptor.close(); }
+
+    HttpServer::Stats takeStats()
+    {
+        auto ret = stats;
+        stats    = {};
+        return ret;
+    }
 };
 
 HttpServer::HttpServer(boost::asio::io_context &io_context,
                        const std::string       &bind_address,
                        uint16_t                 bind_port,
-                       const std::string       &base_path) :
-    d(std::make_unique<HttpServerPrivate>(io_context, bind_address, bind_port, base_path))
+                       const std::string       &base_path,
+                       const std::string       &service_name) :
+    d(std::make_unique<HttpServerPrivate>(io_context, bind_address, bind_port, base_path, service_name))
 {
 }
 
@@ -202,6 +232,8 @@ void HttpServer::route(http::verb method, std::string &&path, RequestHandler &&h
 {
     d->addRoute(method, std::move(path), std::move(handler));
 }
+
+HttpServer::Stats HttpServer::takeStats() { return d->takeStats(); }
 
 HttpServer::~HttpServer() = default;
 
