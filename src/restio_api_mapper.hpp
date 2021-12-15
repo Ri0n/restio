@@ -32,6 +32,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "restio_common.hpp"
 #include "restio_properties.hpp"
 
+#include <type_traits>
+
 namespace restio::api {
 
 using namespace ::nlohmann;
@@ -42,6 +44,7 @@ struct API {
     struct Method {
         using Handler
             = std::function<awaitable<void>(Request &request, Response &response, const Properties &properties)>;
+        // using SyncHandler = std::function<void(Request &request, Response &response, const Properties &properties)>;
 
         http::verb  method;
         std::string uri;
@@ -51,39 +54,71 @@ struct API {
         std::string responseStatus;
         Handler     handler;
 
-        template <typename Request, typename Response>
-        static Method sample(http::verb    method,
-                             std::string &&uri,
-                             std::string &&desc,
-                             std::string &&responseStatus,
-                             Handler     &&handler)
+        // Wrapping hardler to an async func if it's synchronous
+        template <typename HandlerType>
+        inline static Handler wrapHandler(
+            HandlerType &&handler,
+            typename std::enable_if<
+                std::is_same<typename std::invoke_result<HandlerType, Request &, Response &, const Properties &>::type,
+                             awaitable<void>>::value>::type * = 0)
+        {
+            return handler;
+        }
+
+        template <typename HandlerType>
+        inline static Handler wrapHandler(
+            HandlerType &&handler,
+            typename std::enable_if<
+                std::is_same<typename std::invoke_result<HandlerType, Request &, Response &, const Properties &>::type,
+                             void>::value>::type * = 0)
+        {
+            return [handler = std::move(handler)](
+                       Request &request, Response &response, const Properties &properties) -> awaitable<void> {
+                handler(request, response, properties);
+                co_return;
+            };
+        }
+
+        template <typename RequestMessage, typename ResponseMessage, typename HandlerType>
+        inline static Method sample(http::verb    method,
+                                    std::string &&uri,
+                                    std::string &&desc,
+                                    std::string &&responseStatus,
+                                    HandlerType &&handler)
         {
             return Method {
                 method,
                 std::move(uri),
                 std::move(desc),
-                Request::docSample(),
-                Response::docSample(),
+                RequestMessage::docSample(),
+                ResponseMessage::docSample(),
                 std::move(responseStatus),
-                std::move(handler),
+                std::move(wrapHandler(std::move(handler))),
             };
         }
+
         struct Dummy {
             static json docSample() { return nullptr; }
         };
-        template <typename Response, typename... Args> static Method get(Args &&...args)
+
+        template <typename ResponseMessage, typename... Args> inline static Method get(Args &&...args)
         {
-            return sample<Dummy, Response>(http::verb::get, std::forward<Args>(args)...);
+            return sample<Dummy, ResponseMessage>(http::verb::get, std::forward<Args>(args)...);
         }
-        template <typename Request, typename Response, typename... Args> static Method post(Args &&...args)
+
+        template <typename RequestMessage, typename ResponseMessage, typename... Args>
+        inline static Method post(Args &&...args)
         {
-            return sample<Request, Response>(http::verb::post, std::forward<Args>(args)...);
+            return sample<RequestMessage, ResponseMessage>(http::verb::post, std::forward<Args>(args)...);
         }
-        template <typename Request, typename Response = Dummy, typename... Args> static Method put(Args &&...args)
+
+        template <typename RequestMessage, typename ResponseMessage = Dummy, typename... Args>
+        inline static Method put(Args &&...args)
         {
-            return sample<Request, Response>(http::verb::put, std::forward<Args>(args)...);
+            return sample<RequestMessage, ResponseMessage>(http::verb::put, std::forward<Args>(args)...);
         }
-        template <typename... Args> static Method delete_(Args &&...args)
+
+        template <typename... Args> inline static Method delete_(Args &&...args)
         {
             return sample<Dummy, Dummy>(http::verb::delete_, std::forward<Args>(args)...);
         }
@@ -104,10 +139,37 @@ struct API {
         std::reference_wrapper<const Method> method;
     };
 
+    inline API(int version = 1) : version(version) { }
+
+    template <typename ResponseMessage, typename... Args> inline API &get(Args &&...args)
+    {
+        methods.push_back(Method::get<ResponseMessage>(std::forward<Args>(args)...));
+        return *this;
+    }
+
+    template <typename RequestMessage, typename ResponseMessage, typename... Args> inline API &post(Args &&...args)
+    {
+        methods.push_back(Method::post<RequestMessage, ResponseMessage>(std::forward<Args>(args)...));
+        return *this;
+    }
+
+    template <typename RequestMessage, typename ResponseMessage = Method::Dummy, typename... Args>
+    inline API &put(Args &&...args)
+    {
+        methods.push_back(Method::put<RequestMessage, ResponseMessage>(std::forward<Args>(args)...));
+        return *this;
+    }
+
+    template <typename... Args> inline API &delete_(Args &&...args)
+    {
+        methods.push_back(Method::delete_(std::forward<Args>(args)...));
+        return *this;
+    }
+
     void                        buildParser();
     std::optional<LookupResult> lookup(http::verb method, std::string_view target) const;
 
-    int                     version = 0;
+    int                     version = 1;
     std::vector<Method>     methods;
     std::vector<ParsedNode> roots;
 };

@@ -139,6 +139,9 @@ public:
                 "200 - ok<br>404 - resource not found",
                 apiCB(onResoureGetRequest)),
         };
+        api.get<ResourceGetResponse>("hello", "Say Hello", "200 - Hello back", [](Request &, Response &response, const Properties &) {
+            RestHandler::makeOkResponse(response, ResourceGetResponse { "world" });
+        });
         restHandler.registerAPI(std::move(api));
         // clang-format on
 #undef apiCB
